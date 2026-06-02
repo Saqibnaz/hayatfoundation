@@ -9,6 +9,30 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCXs82Nm8oG1WknkOoxbVtIzgEF3-mLIDg",
+    authDomain: "new-hayat-foundation.firebaseapp.com",
+    projectId: "new-hayat-foundation",
+    storageBucket: "new-hayat-foundation.firebasestorage.app",
+    messagingSenderId: "824865972502",
+    appId: "1:824865972502:web:b0b39bf2817b3815a57037"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // ── Expose Firebase functions globally so the rest of the script can use them ──
+  window._db = db;
+  window._fb = { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy };
+  window._firebaseReady = true;
+  document.dispatchEvent(new Event('firebase-ready'));
+</script>
+
 <style>
 /* =========================================================
    LIFEDROP — All-in-one stylesheet
@@ -1867,13 +1891,13 @@ p { color: var(--color-ink-soft); }
         <div class="fact"><strong>Ali Asim</strong>Co-founder — Hayat Foundation</div>
         <div class="fact"><strong>Saqib Nazeer</strong>Co-founder — Hayat Foundation</div>
         <div class="fact"><strong>Jalal Akbar</strong>Co-founder — Hayat Foundation</div>
-        <div class="fact"><strong>Bilal Noor</strong>Co-founder — Hayat Foundation</div>
+        <div class="fact"><strong>Bilal Ahmad</strong>Co-founder — Hayat Foundation</div>
         <div class="fact"><strong>Ans Rabi</strong>Co-founder — Hayat Foundation</div>
         <div class="fact"><strong>Ashhel Kamran</strong>Co-founder — Hayat Foundation</div>
       </div>
 
       <div class="info-box" style="margin-top:1.5rem;">
-        <strong>Get in touch:</strong> For emergencies or partnership inquiries, call <a href="tel:03494232236" style="color:var(--color-primary);font-weight:600;">0349-4232236</a> or email <a href="mailto:hayatfoundationoffical@gmail.com" style="color:var(--color-primary);font-weight:600;">hayatfoundationoffical@gmail.com</a>.
+        <strong>Get in touch:</strong> For emergencies or partnership inquiries, call <a href="tel:03494232236" style="color:var(--color-primary);font-weight:600;">0349-4232236</a> or email <a href="mailto:hayatfoundation@official.com" style="color:var(--color-primary);font-weight:600;">hayatfoundation@official.com</a>.
       </div>
 
       <h2>About this project</h2>
@@ -1914,7 +1938,7 @@ p { color: var(--color-ink-soft); }
         <h4>Contact Hayat Foundation</h4>
         <ul>
           <li><strong style="color:#fff;">Emergency:</strong> <a href="tel:03494232236">0349-4232236</a></li>
-          <li><strong style="color:#fff;">Email:</strong> <a href="mailto:hayatfoundationoffical@gmail.com">hayatfoundationoffical@gmail.com</a></li>
+          <li><strong style="color:#fff;">Email:</strong> <a href="mailto:hayatfoundation@official.com">hayatfoundation@official.com</a></li>
         </ul>
         <h4 style="margin-top:1.5rem;">Other Emergency Helplines</h4>
         <ul>
@@ -1945,24 +1969,71 @@ p { color: var(--color-ink-soft); }
 
 <script>
 /* ========================================================
-   LIFEDROP — All-in-one JavaScript
+   LIFEDROP — All-in-one JavaScript (Firebase Edition)
    ======================================================== */
 
 /* ---------- CHANGE ADMIN PASSWORD HERE ---------- */
 const ADMIN_PASSWORD = 'hayatteam1234@';
 
-/* ---------- Storage Keys ---------- */
-const DONORS_KEY = 'hayat_donors';
-const ACCEPTORS_KEY = 'hayat_acceptors';
-const LAST_ACCEPTOR_KEY = 'hayat_last_acceptor';
-const AUTH_KEY = 'hayat_admin_auth';
+/* ---------- Firebase Collections ---------- */
+const DONORS_COL    = 'donors';
+const ACCEPTORS_COL = 'acceptors';
+const AUTH_KEY      = 'hayat_admin_auth';
 
-/* ---------- Helpers ---------- */
-function getData(key) {
-  try { return JSON.parse(localStorage.getItem(key)) || []; }
-  catch (e) { return []; }
+/* ---------- In-memory cache (populated from Firestore) ---------- */
+let _donors    = [];
+let _acceptors = [];
+let _lastAcceptor = null;
+
+function getData(col)     { return col === DONORS_COL ? _donors : _acceptors; }
+function saveData()       { /* no-op: writes go directly to Firestore */ }
+
+/* ---------- Firestore helpers ---------- */
+async function fbAddDonor(donor) {
+  const { collection, addDoc } = window._fb;
+  const docRef = await addDoc(collection(window._db, DONORS_COL), donor);
+  donor.docId = docRef.id;
+  _donors.push(donor);
 }
-function saveData(key, data) { localStorage.setItem(key, JSON.stringify(data)); }
+async function fbAddAcceptor(acceptor) {
+  const { collection, addDoc } = window._fb;
+  const docRef = await addDoc(collection(window._db, ACCEPTORS_COL), acceptor);
+  acceptor.docId = docRef.id;
+  _acceptors.push(acceptor);
+}
+async function fbUpdateDonor(id, fields) {
+  const d = _donors.find(x => x.id === id);
+  if (!d || !d.docId) return;
+  await window._fb.updateDoc(window._fb.doc(window._db, DONORS_COL, d.docId), fields);
+  Object.assign(d, fields);
+}
+async function fbUpdateAcceptor(id, fields) {
+  const a = _acceptors.find(x => x.id === id);
+  if (!a || !a.docId) return;
+  await window._fb.updateDoc(window._fb.doc(window._db, ACCEPTORS_COL, a.docId), fields);
+  Object.assign(a, fields);
+}
+async function fbDeleteDonor(id) {
+  const d = _donors.find(x => x.id === id);
+  if (!d || !d.docId) return;
+  await window._fb.deleteDoc(window._fb.doc(window._db, DONORS_COL, d.docId));
+  _donors = _donors.filter(x => x.id !== id);
+}
+async function fbDeleteAcceptor(id) {
+  const a = _acceptors.find(x => x.id === id);
+  if (!a || !a.docId) return;
+  await window._fb.deleteDoc(window._fb.doc(window._db, ACCEPTORS_COL, a.docId));
+  _acceptors = _acceptors.filter(x => x.id !== id);
+}
+async function loadAllData() {
+  const { collection, getDocs } = window._fb;
+  const [dSnap, aSnap] = await Promise.all([
+    getDocs(collection(window._db, DONORS_COL)),
+    getDocs(collection(window._db, ACCEPTORS_COL))
+  ]);
+  _donors    = dSnap.docs.map(d => ({ docId: d.id, ...d.data() }));
+  _acceptors = aSnap.docs.map(d => ({ docId: d.id, ...d.data() }));
+}
 function generateId(prefix) { return prefix + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5); }
 function formatDate(iso) {
   if (!iso) return '—';
@@ -2057,12 +2128,15 @@ async function handleDonorForm(e) {
     showToast('Consent required', 'Please confirm the eligibility checklist before submitting.', true);
     return;
   }
-  const donors = getData(DONORS_KEY);
-  donors.push(donor);
-  saveData(DONORS_KEY, donors);
-  showToast('Registration successful', 'Thank you for joining as a life-saver. Your details are pending verification.');
-  form.reset();
-  setTimeout(() => showPage('home'), 1500);
+  try {
+    await fbAddDonor(donor);
+    showToast('Registration successful', 'Thank you for joining as a life-saver. Your details are pending verification.');
+    form.reset();
+    setTimeout(() => showPage('home'), 1500);
+  } catch(err) {
+    showToast('Error', 'Could not save. Please check your connection.', true);
+    console.error(err);
+  }
 }
 
 async function handleAcceptorForm(e) {
@@ -2103,14 +2177,20 @@ async function handleAcceptorForm(e) {
   const acceptors = getData(ACCEPTORS_KEY);
   acceptors.push(acceptor);
   saveData(ACCEPTORS_KEY, acceptors);
-  sessionStorage.setItem(LAST_ACCEPTOR_KEY, JSON.stringify({
+  sessionStorage.setItem('hayat_last_acceptor', JSON.stringify({
     bloodGroup: acceptor.bloodGroupNeeded,
     city: acceptor.hospitalCity,
     area: acceptor.hospitalArea
   }));
-  showToast('Request submitted', 'Redirecting to available donors...');
-  form.reset();
-  setTimeout(() => showPage('find'), 1200);
+  try {
+    await fbAddAcceptor(acceptor);
+    showToast('Request submitted', 'Redirecting to available donors...');
+    form.reset();
+    setTimeout(() => showPage('find'), 1200);
+  } catch(err) {
+    showToast('Error', 'Could not save. Please check your connection.', true);
+    console.error(err);
+  }
 }
 
 /* ---------- Find Donors ---------- */
@@ -2118,7 +2198,7 @@ function renderDonors() {
   const grid = document.getElementById('donorGrid');
   const countEl = document.getElementById('resultsCount');
   if (!grid) return;
-  const donors = getData(DONORS_KEY);
+  const donors = _donors;
   const bloodFilter = document.getElementById('filterBlood').value || '';
   const cityFilter = (document.getElementById('filterCity').value || '').trim().toLowerCase();
   const areaFilter = (document.getElementById('filterArea').value || '').trim().toLowerCase();
@@ -2158,14 +2238,14 @@ function renderDonors() {
 }
 
 function initFindPage() {
-  const last = sessionStorage.getItem(LAST_ACCEPTOR_KEY);
+  const last = sessionStorage.getItem('hayat_last_acceptor');
   if (last) {
     try {
       const data = JSON.parse(last);
       if (data.bloodGroup) document.getElementById('filterBlood').value = data.bloodGroup;
       if (data.city) document.getElementById('filterCity').value = data.city;
       if (data.area) document.getElementById('filterArea').value = data.area;
-      sessionStorage.removeItem(LAST_ACCEPTOR_KEY);
+      sessionStorage.removeItem('hayat_last_acceptor');
     } catch (e) {}
   }
   renderDonors();
@@ -2173,8 +2253,8 @@ function initFindPage() {
 
 /* ---------- Home Stats ---------- */
 function updateHomeStats() {
-  const donors = getData(DONORS_KEY).filter(d => d.status === 'verified');
-  const requests = getData(ACCEPTORS_KEY);
+  const donors = _donors.filter(d => d.status === 'verified');
+  const requests = _acceptors;
   document.getElementById('statDonors').textContent = donors.length;
   document.getElementById('statRequests').textContent = requests.length;
   const cities = new Set(donors.map(d => d.city.toLowerCase()));
@@ -2224,8 +2304,8 @@ function switchTab(tab) {
 }
 
 function renderAdminDashboard() {
-  const donors = getData(DONORS_KEY);
-  const acceptors = getData(ACCEPTORS_KEY);
+  const donors = _donors;
+  const acceptors = _acceptors;
   document.getElementById('totalDonors').textContent = donors.length;
   document.getElementById('verifiedDonors').textContent = donors.filter(d => d.status === 'verified').length;
   document.getElementById('totalRequests').textContent = acceptors.length;
@@ -2254,7 +2334,7 @@ function urgencyTag(urgency) {
 }
 
 function renderDonorsTable() {
-  let donors = getData(DONORS_KEY);
+  let donors = [..._donors];
   if (adminSearchQuery) {
     const q = adminSearchQuery.toLowerCase();
     donors = donors.filter(d => d.name.toLowerCase().includes(q) || d.phone.includes(q) || d.city.toLowerCase().includes(q) || d.bloodGroup.toLowerCase().includes(q));
@@ -2283,7 +2363,7 @@ function renderDonorsTable() {
 }
 
 function renderAcceptorsTable() {
-  let acceptors = getData(ACCEPTORS_KEY);
+  let acceptors = [..._acceptors];
   if (adminSearchQuery) {
     const q = adminSearchQuery.toLowerCase();
     acceptors = acceptors.filter(a => a.patientName.toLowerCase().includes(q) || a.phone.includes(q) || a.hospitalCity.toLowerCase().includes(q) || a.bloodGroupNeeded.toLowerCase().includes(q));
@@ -2320,7 +2400,7 @@ function showModal(title, contentHTML) {
 function closeModal() { document.getElementById('modalBackdrop').classList.remove('show'); }
 
 function viewDonor(id) {
-  const d = getData(DONORS_KEY).find(x => x.id === id);
+  const d = _donors.find(x => x.id === id);
   if (!d) return;
   const content = '<div class="detail-list">' +
     '<div class="row"><span class="label">Name</span><span class="value">' + escapeHtml(d.name) + '</span></div>' +
@@ -2343,7 +2423,7 @@ function viewDonor(id) {
 }
 
 function viewAcceptor(id) {
-  const a = getData(ACCEPTORS_KEY).find(x => x.id === id);
+  const a = _acceptors.find(x => x.id === id);
   if (!a) return;
   let docSection = '<span class="value">No document attached</span>';
   if (a.document && a.document.data) {
@@ -2372,36 +2452,32 @@ function viewAcceptor(id) {
   showModal('Blood Request Details', content);
 }
 
-function updateDonorStatus(id, status) {
-  const donors = getData(DONORS_KEY);
-  const d = donors.find(x => x.id === id);
+async function updateDonorStatus(id, status) {
+  const d = _donors.find(x => x.id === id);
   if (!d) return;
-  d.status = status;
-  saveData(DONORS_KEY, donors);
+  await fbUpdateDonor(id, { status });
   showToast('Status updated', 'Donor ' + d.name + ' → ' + status);
   renderAdminDashboard();
 }
 
-function updateAcceptorStatus(id, status) {
-  const acceptors = getData(ACCEPTORS_KEY);
-  const a = acceptors.find(x => x.id === id);
+async function updateAcceptorStatus(id, status) {
+  const a = _acceptors.find(x => x.id === id);
   if (!a) return;
-  a.status = status;
-  saveData(ACCEPTORS_KEY, acceptors);
+  await fbUpdateAcceptor(id, { status });
   showToast('Status updated', 'Request → ' + status);
   renderAdminDashboard();
 }
 
-function deleteDonor(id) {
+async function deleteDonor(id) {
   if (!confirm('Permanently delete this donor record? This cannot be undone.')) return;
-  saveData(DONORS_KEY, getData(DONORS_KEY).filter(d => d.id !== id));
+  await fbDeleteDonor(id);
   showToast('Deleted', 'Donor record removed');
   renderAdminDashboard();
 }
 
-function deleteAcceptor(id) {
+async function deleteAcceptor(id) {
   if (!confirm('Permanently delete this request? This cannot be undone.')) return;
-  saveData(ACCEPTORS_KEY, getData(ACCEPTORS_KEY).filter(a => a.id !== id));
+  await fbDeleteAcceptor(id);
   showToast('Deleted', 'Request removed');
   renderAdminDashboard();
 }
@@ -2428,7 +2504,7 @@ function downloadCSV(content, filename) {
 }
 
 function exportDonors() {
-  const donors = getData(DONORS_KEY);
+  const donors = _donors;
   if (donors.length === 0) { showToast('Nothing to export', 'No donor records yet.', true); return; }
   const headers = [
     { label: 'Name', value: 'name' }, { label: 'Age', value: 'age' }, { label: 'Gender', value: 'gender' },
@@ -2446,7 +2522,7 @@ function exportDonors() {
 }
 
 function exportAcceptors() {
-  const acceptors = getData(ACCEPTORS_KEY);
+  const acceptors = _acceptors;
   if (acceptors.length === 0) { showToast('Nothing to export', 'No request records yet.', true); return; }
   const headers = [
     { label: 'Patient Name', value: 'patientName' }, { label: 'Patient Age', value: 'patientAge' },
@@ -2465,17 +2541,26 @@ function exportAcceptors() {
   showToast('Export ready', acceptors.length + ' requests exported as CSV (opens in Excel).');
 }
 
-function clearAllData() {
+async function clearAllData() {
   const confirmation = prompt('⚠️ This will permanently delete ALL donors and requests. Type "DELETE" to confirm:');
   if (confirmation === 'DELETE') {
-    localStorage.removeItem(DONORS_KEY);
-    localStorage.removeItem(ACCEPTORS_KEY);
+    const { collection, getDocs, deleteDoc, doc } = window._fb;
+    const [dSnap, aSnap] = await Promise.all([
+      getDocs(collection(window._db, DONORS_COL)),
+      getDocs(collection(window._db, ACCEPTORS_COL))
+    ]);
+    const deletes = [
+      ...dSnap.docs.map(d => deleteDoc(doc(window._db, DONORS_COL, d.id))),
+      ...aSnap.docs.map(d => deleteDoc(doc(window._db, ACCEPTORS_COL, d.id)))
+    ];
+    await Promise.all(deletes);
+    _donors = []; _acceptors = [];
     showToast('All data cleared', 'Database has been reset.');
     renderAdminDashboard();
   }
 }
 
-function seedDemoData() {
+async function seedDemoData() {
   if (!confirm('Add 8 sample donors and 3 sample requests for demonstration?')) return;
   const demoDonors = [
     { name: 'Ahmed Hassan', age: 28, gender: 'Male', phone: '03001234567', email: 'ahmed.h@example.com', bloodGroup: 'O+', city: 'Lahore', area: 'Gulberg', address: 'House 45, Block B, Gulberg III, Lahore', availability: 'anytime', pickAndDrop: true, weight: '72', lastDonation: '2026-01-15', diseases: 'None', status: 'verified' },
@@ -2492,27 +2577,32 @@ function seedDemoData() {
     { patientName: 'Areeba Faisal', patientAge: '8', attendantName: 'Faisal Mehmood (father)', phone: '03332223344', email: 'faisal@example.com', bloodGroupNeeded: 'B+', unitsNeeded: '1', urgency: 'Critical', requiredBy: '2026-05-18', hospitalName: 'Fatimid Foundation', hospitalPhone: '042-111-111-326', hospitalCity: 'Lahore', hospitalArea: 'Shadman', doctorName: 'Dr. Tahira Zafar', reason: 'Monthly transfusion for thalassemia patient. Regular schedule.', document: null, status: 'verified' },
     { patientName: 'Iqra Bibi', patientAge: '32', attendantName: 'Akhtar Hussain (husband)', phone: '03114445566', email: '', bloodGroupNeeded: 'A+', unitsNeeded: '3', urgency: 'Critical', requiredBy: '2026-05-17', hospitalName: 'Jinnah Hospital', hospitalPhone: '042-99231400', hospitalCity: 'Lahore', hospitalArea: 'Faisal Town', doctorName: 'Dr. Naureen Ahmad', reason: 'Postpartum hemorrhage following childbirth. Required immediately.', document: null, status: 'pending' }
   ];
-  const existingDonors = getData(DONORS_KEY);
-  const existingAcceptors = getData(ACCEPTORS_KEY);
   demoDonors.forEach(d => {
     d.id = 'donor_demo_' + Math.random().toString(36).substr(2, 8);
     d.consent = true;
     d.registeredAt = new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString();
-    existingDonors.push(d);
   });
   demoAcceptors.forEach(a => {
     a.id = 'acceptor_demo_' + Math.random().toString(36).substr(2, 8);
     a.registeredAt = new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString();
-    existingAcceptors.push(a);
   });
-  saveData(DONORS_KEY, existingDonors);
-  saveData(ACCEPTORS_KEY, existingAcceptors);
+  await Promise.all([
+    ...demoDonors.map(d => fbAddDonor(d)),
+    ...demoAcceptors.map(a => fbAddAcceptor(a))
+  ]);
   showToast('Demo data added', '8 donors + 3 requests inserted. Perfect for your presentation!');
   renderAdminDashboard();
 }
 
 /* ---------- Init ---------- */
-document.addEventListener('DOMContentLoaded', () => {
+async function initApp() {
+  // Load all data from Firestore first
+  try {
+    await loadAllData();
+  } catch(e) {
+    console.warn('Firebase load error:', e);
+  }
+
   // Navigation
   document.body.addEventListener('click', (e) => {
     const link = e.target.closest('[data-page]');
@@ -2568,7 +2658,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target.id === 'modalBackdrop') closeModal();
   });
 
-  // Hash navigation (allows direct linking like #donor)
+  // Hash navigation
   const initialHash = (window.location.hash || '#home').slice(1);
   showPage(initialHash);
   window.addEventListener('hashchange', () => {
@@ -2584,7 +2674,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (entry.isIntersecting) {
           journeyEl.classList.add('activated');
         } else {
-          // Re-enable on re-scroll up so user can see it again
           if (entry.boundingClientRect.top > window.innerHeight) {
             journeyEl.classList.remove('activated');
           }
@@ -2594,7 +2683,7 @@ document.addEventListener('DOMContentLoaded', () => {
     journeyObserver.observe(journeyEl);
   }
 
-  // Brand reveal: scroll-linked drop falling into HAYAT, painting it red progressively
+  // Brand reveal animation
   const brandSection = document.getElementById('brandReveal');
   const brandDrop = document.getElementById('brandDrop');
   if (brandSection && brandDrop) {
@@ -2603,7 +2692,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const megaStack = brandSection.querySelector('.brand-mega-stack');
     let isActivated = false;
     let ticking = false;
-
     function updateBrandReveal() {
       const rect = brandSection.getBoundingClientRect();
       const viewportHeight = window.innerHeight;
@@ -2611,59 +2699,43 @@ document.addEventListener('DOMContentLoaded', () => {
       const wrapEl = brandSection.querySelector('.brand-mega-wrap');
       const wrapRect = wrapEl.getBoundingClientRect();
       const stackRect = megaStack.getBoundingClientRect();
-
-      // Scroll progress: drop starts moving once section enters viewport
       let progress = 0;
       const sectionCenter = rect.top + sectionHeight / 2;
       const distanceFromViewportCenter = sectionCenter - viewportHeight / 2;
       if (distanceFromViewportCenter > 0) {
         progress = 1 - Math.min(1, distanceFromViewportCenter / (viewportHeight * 0.55));
-      } else {
-        progress = 1;
-      }
+      } else { progress = 1; }
       progress = Math.max(0, Math.min(1, progress));
-
-      // Drop moves from top of wrap to bottom of text
       const dropHeight = 95;
       const startY = 0;
-      // Target: just past the bottom of the text so fill completes
       const stackTopRel = stackRect.top - wrapRect.top;
       const endY = stackTopRel + stackRect.height - dropHeight * 0.4;
       const dropY = startY + progress * (endY - startY);
       brandDrop.style.top = dropY + 'px';
-
-      // Fill the text based on where the drop's BOTTOM edge is, relative to text
       const dropBottomAbs = wrapRect.top + dropY + dropHeight * 0.7;
       const textTopAbs = stackRect.top;
       const textHeight = stackRect.height;
       let fillProgress = (dropBottomAbs - textTopAbs) / textHeight;
       fillProgress = Math.max(0, Math.min(1, fillProgress));
-
-      // Apply progressive clip-path — reveal the filled text from top down
       megaFill.style.clipPath = 'inset(' + ((1 - fillProgress) * 100) + '% 0 0 0)';
-
-      // Splash + tagline trigger when fill is nearly complete
-      if (fillProgress >= 0.92 && !isActivated) {
-        isActivated = true;
-        brandSection.classList.add('activated');
-      } else if (fillProgress < 0.6 && isActivated) {
-        isActivated = false;
-        brandSection.classList.remove('activated');
-      }
-
+      if (fillProgress >= 0.92 && !isActivated) { isActivated = true; brandSection.classList.add('activated'); }
+      else if (fillProgress < 0.6 && isActivated) { isActivated = false; brandSection.classList.remove('activated'); }
       ticking = false;
     }
-
     function onScroll() {
-      if (!ticking) {
-        window.requestAnimationFrame(updateBrandReveal);
-        ticking = true;
-      }
+      if (!ticking) { window.requestAnimationFrame(updateBrandReveal); ticking = true; }
     }
-
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll, { passive: true });
     setTimeout(updateBrandReveal, 100);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (window._firebaseReady) {
+    initApp();
+  } else {
+    document.addEventListener('firebase-ready', initApp);
   }
 });
 
